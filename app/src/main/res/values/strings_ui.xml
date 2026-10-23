@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings of the redesigned Home, tab bar and the Rosary. -->
+<resources>
+    <string name="home_today">Today</string>
+    <string name="home_read">Read</string>
+    <string name="home_share">Share</string>
+    <string name="home_share_via">Share the verse</string>
+    <string name="home_reading">Reading</string>
+    <string name="home_open_bible">Open the Bible</string>
+    <string name="home_progress">Progress</string>
+    <string name="home_stat_streak">Streak</string>
+    <string name="home_stat_read">Read</string>
+    <string name="home_stat_prayed">Prayed</string>
+    <string name="home_reading_law">Law and Prophets</string>
+    <string name="home_reading_psalm">Psalm</string>
+    <string name="home_reading_gospel">Gospel</string>
+    <string name="home_reading_apostle">Apostle</string>
+    <string name="home_readings_offline">The readings of the day appear here once you are online.</string>
+    <string name="home_help">Help</string>
+    <string name="home_profile">Profile and settings</string>
+    <string name="home_background_credit">Background: %1$s · %2$s</string>
+    <string name="home_rosary_today">Today: %1$s</string>
+    <string name="rosary_title">The Rosary</string>
+    <string name="rosary_card_body">Pray along bead by bead, with the mysteries of the day.</string>
+    <string name="rosary_today">today</string>
+    <string name="rosary_joyful">Joyful</string>
+    <string name="rosary_luminous">Luminous</string>
+    <string name="rosary_sorrowful">Sorrowful</string>
+    <string name="rosary_glorious">Glorious</string>
+    <string name="rosary_previous">Back</string>
+    <string name="rosary_next">Next bead</string>
+    <string name="rosary_amen">Amen</string>
+    <string name="rosary_first">First</string>
+    <string name="rosary_second">Second</string>
+    <string name="rosary_third">Third</string>
+    <string name="rosary_fourth">Fourth</string>
+    <string name="rosary_fifth">Fifth</string>
+    <string name="rosary_decade_count">%1$s mystery · %2$d of 10</string>
+    <string name="rosary_mystery_n">%1$s mystery</string>
+    <string name="rosary_opening">Opening prayers</string>
+    <string name="rosary_closing">Closing prayers</string>
+    <string name="rosary_read">Read %1$s</string>
+    <string name="rosary_assumption_note">The Assumption has no single Bible passage: the Church holds it as handed down in Tradition.</string>
+    <string name="rosary_done_title">The Rosary is prayed</string>
+    <string name="rosary_done_body">You prayed %1$s. Thank you for this time of prayer.</string>
+    <string name="rosary_again">Pray again</string>
+    <string name="rosary_beads_description">Rosary beads. Tap the glowing bead for the next prayer, or any bead to go there.</string>
+    <string name="reader_select_hint">Tap a verse to highlight it, save it or add a note.</string>
+    <string name="reader_end_of">End of %1$s</string>
+    <string name="reader_previous_chapter">Previous chapter</string>
+    <string name="reader_next_chapter">Next chapter</string>
+    <string name="bible_filter_books">Search a Bible book…</string>
+    <string name="reader_info">Info</string>
+</resources>

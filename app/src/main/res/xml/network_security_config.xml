@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- The Catholic liturgical calendar API is only served over plain HTTP. Nothing personal is sent to it. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">calapi.inadiutorium.cz</domain>
+    </domain-config>
+</network-security-config>

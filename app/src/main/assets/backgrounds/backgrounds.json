@@ -1,0 +1,58 @@
+[
+ {
+  "file": "backgrounds/art_sanctuary.jpg",
+  "title": "Sanctuary with lamps (painted for AGAPE)",
+  "artist": "AGAPE, tools/render_backgrounds.py",
+  "licence": "CC0",
+  "source": ""
+ },
+ {
+  "file": "backgrounds/art_dome.jpg",
+  "title": "Golden dome (painted for AGAPE)",
+  "artist": "AGAPE, tools/render_backgrounds.py",
+  "licence": "CC0",
+  "source": ""
+ },
+ {
+  "file": "backgrounds/art_candles.jpg",
+  "title": "Candles before an icon (painted for AGAPE)",
+  "artist": "AGAPE, tools/render_backgrounds.py",
+  "licence": "CC0",
+  "source": ""
+ },
+ {
+  "file": "backgrounds/photo_gaspare_fossati_louis_haghe_vue_g_n_rale.jpg",
+  "title": "Gaspare Fossati - Louis Haghe - Vue générale de la grande nef, en regardant l'occident (Hagia Sophia - Ayasofya Mosque nave)",
+  "artist": "Gaspare Fossati (artist, 1809-1883) Louis Haghe (lithographer, 1806-1885) Adam Cuerden (restoration)",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:Gaspare_Fossati_-_Louis_Haghe_-_Vue_g%C3%A9n%C3%A9rale_de_la_grande_nef,_en_regardant_l%27occident_(Hagia_Sophia_-_Ayasofya_Mosque_nave).jpg"
+ },
+ {
+  "file": "backgrounds/photo_byzantine_mosaics_years_817_824_santa_pr.jpg",
+  "title": "Byzantine mosaics, years 817-824 - Santa Prassede Church in Rome (25580450253)",
+  "artist": "Carlo Raso from Naples, Italy",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:Byzantine_mosaics,_years_817-824_-_Santa_Prassede_Church_in_Rome_(25580450253).jpg"
+ },
+ {
+  "file": "backgrounds/photo_russian_orthodox_iconostasis_deventer.jpg",
+  "title": "Russian Orthodox iconostasis Deventer",
+  "artist": "Apdency",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:Russian_Orthodox_iconostasis_Deventer.jpg"
+ },
+ {
+  "file": "backgrounds/photo_chora_church_constantinople_6.jpg",
+  "title": "Chora Church Constantinople (6)",
+  "artist": "Gryffindor",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:Chora_Church_Constantinople_(6).JPG"
+ },
+ {
+  "file": "backgrounds/photo_st_marys_cathedral_nave_edinburgh.jpg",
+  "title": "St Marys Cathedral Nave Edinburgh",
+  "artist": "Michael D Beckwith",
+  "licence": "CC0",
+  "source": "https://commons.wikimedia.org/wiki/File:St_Marys_Cathedral_Nave_Edinburgh.jpg"
+ }
+]

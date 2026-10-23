@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings of the redesigned Home, tab bar and the Rosary. -->
+<resources>
+    <string name="home_today">Vandaag</string>
+    <string name="home_read">Lees</string>
+    <string name="home_share">Deel</string>
+    <string name="home_share_via">Deel de tekst</string>
+    <string name="home_reading">Lezen</string>
+    <string name="home_open_bible">Open de Bijbel</string>
+    <string name="home_progress">Voortgang</string>
+    <string name="home_stat_streak">Reeks</string>
+    <string name="home_stat_read">Gelezen</string>
+    <string name="home_stat_prayed">Gebed</string>
+    <string name="home_reading_law">Wet en profeten</string>
+    <string name="home_reading_psalm">Psalm</string>
+    <string name="home_reading_gospel">Evangelie</string>
+    <string name="home_reading_apostle">Apostel</string>
+    <string name="home_readings_offline">De lezingen van de dag verschijnen hier zodra je online bent.</string>
+    <string name="home_help">Hulp</string>
+    <string name="home_profile">Profiel en instellingen</string>
+    <string name="home_background_credit">Achtergrond: %1$s · %2$s</string>
+    <string name="home_rosary_today">Vandaag: %1$s</string>
+    <string name="rosary_title">De rozenkrans</string>
+    <string name="rosary_card_body">Bid kraal voor kraal mee, met de geheimen van de dag.</string>
+    <string name="rosary_today">vandaag</string>
+    <string name="rosary_joyful">Blijde</string>
+    <string name="rosary_luminous">Van het licht</string>
+    <string name="rosary_sorrowful">Droevige</string>
+    <string name="rosary_glorious">Glorievolle</string>
+    <string name="rosary_previous">Terug</string>
+    <string name="rosary_next">Volgende kraal</string>
+    <string name="rosary_amen">Amen</string>
+    <string name="rosary_first">Eerste</string>
+    <string name="rosary_second">Tweede</string>
+    <string name="rosary_third">Derde</string>
+    <string name="rosary_fourth">Vierde</string>
+    <string name="rosary_fifth">Vijfde</string>
+    <string name="rosary_decade_count">%1$s geheim · %2$d van 10</string>
+    <string name="rosary_mystery_n">%1$s geheim</string>
+    <string name="rosary_opening">Openingsgebeden</string>
+    <string name="rosary_closing">Slotgebeden</string>
+    <string name="rosary_read">Lees %1$s</string>
+    <string name="rosary_assumption_note">Bij de tenhemelopneming hoort geen afzonderlijke bijbeltekst: de Kerk heeft haar ontvangen uit de overlevering.</string>
+    <string name="rosary_done_title">De rozenkrans is gebeden</string>
+    <string name="rosary_done_body">Je hebt %1$s gebeden. Dank voor deze tijd van gebed.</string>
+    <string name="rosary_again">Opnieuw bidden</string>
+    <string name="rosary_beads_description">Kralen van de rozenkrans. Tik op de oplichtende kraal voor het volgende gebed, of op een andere kraal om daarheen te gaan.</string>
+    <string name="reader_select_hint">Tik op een vers om het te markeren, te bewaren of er een notitie bij te maken.</string>
+    <string name="reader_end_of">Einde van %1$s</string>
+    <string name="reader_previous_chapter">Vorig hoofdstuk</string>
+    <string name="reader_next_chapter">Volgend hoofdstuk</string>
+    <string name="bible_filter_books">Zoek een Bijbelboek…</string>
+    <string name="reader_info">Info</string>
+</resources>
