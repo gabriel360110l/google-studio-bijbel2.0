@@ -26,21 +26,40 @@ class Backgrounds(private val context: Context) {
         }.getOrDefault(emptyList())
     }
 
-    /** One background per day and per tradition, so switching between Eastern, Oriental, and Catholic changes the backdrop immediately. */
-    fun forDate(date: LocalDate, tradition: Tradition = Tradition.EASTERN_ORTHODOX): BackgroundEntry? {
-        if (all.isEmpty()) return null
-        val pool = when (tradition) {
+    /** Curated pool of atmospheric church and peaceful sunrise nature backgrounds for [tradition]. */
+    fun poolFor(tradition: Tradition = Tradition.EASTERN_ORTHODOX): List<BackgroundEntry> {
+        if (all.isEmpty()) return emptyList()
+        return when (tradition) {
             Tradition.EASTERN_ORTHODOX -> all.filter {
-                it.file.contains("iconostasis") || it.file.contains("chora") || it.file.contains("fossati") || it.file.contains("dome")
+                it.file.contains("church_candles_ljubljana") ||
+                    it.file.contains("sunrise_galilee") ||
+                    it.file.contains("church_candles_bulgaria") ||
+                    it.file.contains("sunrise_mountains_babia") ||
+                    it.file.contains("sunrise_forest_rays")
             }
             Tradition.ORIENTAL_ORTHODOX -> all.filter {
-                it.file.contains("sanctuary") || it.file.contains("candles")
+                it.file.contains("sunrise_galilee") ||
+                    it.file.contains("church_candles_bulgaria") ||
+                    it.file.contains("cloister_toledo") ||
+                    it.file.contains("sunrise_mountains_babia") ||
+                    it.file.contains("church_candles_ljubljana")
             }
             Tradition.CATHOLIC -> all.filter {
-                it.file.contains("cathedral") || it.file.contains("santa_pr")
+                it.file.contains("st_marys_cathedral") ||
+                    it.file.contains("sunrise_forest_rays") ||
+                    it.file.contains("cloister_jeronimos") ||
+                    it.file.contains("sunrise_galilee") ||
+                    it.file.contains("cloister_toledo") ||
+                    it.file.contains("sunrise_mountains_babia")
             }
         }.ifEmpty { all }
-        return pick(pool, date)
+    }
+
+    /** One background per day and per tradition, mixing atmospheric churches and peaceful sunrise nature. */
+    fun forDate(date: LocalDate, tradition: Tradition = Tradition.EASTERN_ORTHODOX, offset: Int = 0): BackgroundEntry? {
+        val pool = poolFor(tradition)
+        if (pool.isEmpty()) return null
+        return pick(pool, date.plusDays(offset.toLong()))
     }
 
     companion object {

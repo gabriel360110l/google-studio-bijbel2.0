@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -127,36 +128,79 @@ fun AgapeCard(
 ) {
     val c = AgapeTheme.colors
     val shape = cardShape
-    // Cards are edged with a hairline of gold, like the border of a printed page, and lie almost flat on the page:
-    // calmer than Material's floating shadows. Classic Sacred draws the line a little stronger.
+    // Cards are edged with a warm gold-and-parchment gradient border, inspired by gilded Bible pages.
     val goldAlpha = when {
-        AgapeTheme.style == VisualStyle.CLASSIC_SACRED -> if (c.isDark) 0.38f else 0.45f
-        c.isDark -> 0.24f
-        else -> 0.32f
+        AgapeTheme.style == VisualStyle.CLASSIC_SACRED -> if (c.isDark) 0.44f else 0.52f
+        c.isDark -> 0.30f
+        else -> 0.38f
     }
-    val border = if (!tonal) BorderStroke(0.8.dp, c.accent.copy(alpha = goldAlpha)) else null
+    val border = if (!tonal) {
+        BorderStroke(
+            width = 1.dp,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    c.accent.copy(alpha = goldAlpha),
+                    c.line.copy(alpha = 0.65f),
+                    c.accent.copy(alpha = goldAlpha * 0.85f),
+                ),
+            ),
+        )
+    } else {
+        BorderStroke(0.8.dp, c.line.copy(alpha = 0.55f))
+    }
     Surface(
-        modifier = modifier.fillMaxWidth()
-            .then(if (tonal || c.isDark) Modifier else Modifier.shadow(6.dp, shape, ambientColor = c.primary.copy(alpha = 0.05f), spotColor = c.primary.copy(alpha = 0.06f)))
-            .clip(shape).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (tonal) Modifier
+                else Modifier.shadow(
+                    elevation = if (c.isDark) 10.dp else 8.dp,
+                    shape = shape,
+                    ambientColor = c.primary.copy(alpha = if (c.isDark) 0.18f else 0.06f),
+                    spotColor = c.primary.copy(alpha = if (c.isDark) 0.25f else 0.09f),
+                )
+            )
+            .clip(shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = shape,
-        color = if (tonal) c.surfaceSunken.copy(alpha = 0.7f) else c.surface,
+        color = if (tonal) c.surfaceSunken.copy(alpha = 0.76f) else c.surface,
         border = border,
     ) {
-        Column(Modifier.padding(contentPadding), content = content)
+        Column(
+            modifier = Modifier
+                .then(
+                    if (!tonal) {
+                        Modifier.background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    c.surfaceRaised.copy(alpha = if (c.isDark) 0.35f else 0.65f),
+                                    c.surface.copy(alpha = 0f),
+                                ),
+                            ),
+                        )
+                    } else Modifier
+                )
+                .padding(contentPadding),
+            content = content,
+        )
     }
 }
 
 @Composable
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, loading: Boolean = false) {
+    val c = AgapeTheme.colors
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
-        modifier = modifier.fillMaxWidth().height(52.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .shadow(if (enabled) 8.dp else 0.dp, buttonShape, spotColor = c.primary.copy(alpha = 0.35f)),
         shape = buttonShape,
-        colors = ButtonDefaults.buttonColors(containerColor = AgapeTheme.colors.primary, contentColor = AgapeTheme.colors.onPrimary),
+        border = if (enabled) BorderStroke(0.8.dp, c.accent.copy(alpha = 0.55f)) else null,
+        colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
     ) {
-        if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = AgapeTheme.colors.onPrimary, strokeWidth = 2.dp)
+        if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = c.onPrimary, strokeWidth = 2.dp)
         else Text(text, style = MaterialTheme.typography.labelLarge)
     }
 }
@@ -168,7 +212,7 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
         enabled = enabled,
         modifier = modifier.fillMaxWidth().height(52.dp),
         shape = buttonShape,
-        border = BorderStroke(1.dp, AgapeTheme.colors.line),
+        border = BorderStroke(1.dp, AgapeTheme.colors.accent.copy(alpha = 0.38f)),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = AgapeTheme.colors.ink),
     ) {
         if (leading != null) { leading(); Spacer(Modifier.width(10.dp)) }
@@ -194,8 +238,24 @@ fun TabHeader(kicker: String, title: String, modifier: Modifier = Modifier, trai
             if (kicker.isNotBlank()) Kicker(kicker, color = AgapeTheme.colors.inkMuted)
             Spacer(Modifier.height(6.dp))
             Text(title, style = MaterialTheme.typography.displayMedium, color = AgapeTheme.colors.ink, modifier = Modifier.semantics { heading() })
-            // A short gold rule under the title, as on a title page.
-            Box(Modifier.padding(top = 10.dp).width(40.dp).height(1.5.dp).background(AgapeTheme.colors.accent))
+            // A gilded rule under the title, as on an illuminated title page.
+            Row(
+                Modifier.padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(Modifier.size(5.dp).clip(CircleShape).background(AgapeTheme.colors.accent))
+                Box(
+                    Modifier
+                        .width(48.dp)
+                        .height(1.5.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(AgapeTheme.colors.accent, AgapeTheme.colors.accent.copy(alpha = 0.1f)),
+                            ),
+                        ),
+                )
+            }
         }
         trailing()
     }
@@ -233,7 +293,12 @@ fun Pill(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifie
     Box(
         modifier
             .clip(CircleShape)
-            .background(if (selected) c.primary else c.surfaceSunken.copy(alpha = 0.6f))
+            .background(if (selected) c.primary else c.surfaceSunken.copy(alpha = 0.68f))
+            .border(
+                width = 0.8.dp,
+                color = if (selected) c.accent.copy(alpha = 0.65f) else c.line.copy(alpha = 0.75f),
+                shape = CircleShape,
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {

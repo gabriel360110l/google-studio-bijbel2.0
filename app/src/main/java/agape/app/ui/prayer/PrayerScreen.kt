@@ -110,10 +110,20 @@ fun PrayerScreen(
     val book = remember(tradition) { container.content.prayerBook(tradition) }
     val prayers = remember(tradition) { container.content.listedPrayers(tradition) }
     val favorites by container.user.favorites.collectAsStateWithLifecycle(emptyList())
-    val now = remember { LocalTime.now() }
-    val current = remember(book) { PrayerClock.current(book.hours, now) }
-    val next = remember(book) { PrayerClock.next(book.hours, now) }
+    val scheduleEntries by container.user.smartSchedule.collectAsStateWithLifecycle(emptyList())
+    val scheduleByHourId = remember(scheduleEntries) { scheduleEntries.associateBy { it.hourId } }
     val reminders = settings.hourReminders.mapNotNull { HourReminder.decode(it) }.associateBy { it.hourId }
+    val effectiveHours = remember(book, reminders, scheduleByHourId) {
+        book.hours.map { h ->
+            val effectiveTime = reminders[h.id]?.let { "%02d:%02d".format(it.time.hour, it.time.minute) }
+                ?: scheduleByHourId[h.id]?.suggestedTime
+                ?: h.time
+            h.copy(time = effectiveTime)
+        }
+    }
+    val now = remember(scheduleEntries) { container.smartSchedule.currentLocalTime(scheduleEntries) }
+    val current = remember(effectiveHours, now) { PrayerClock.current(effectiveHours, now) }
+    val next = remember(effectiveHours, now) { PrayerClock.next(effectiveHours, now) }
     val intentions = remember(settings.prayerIntentions) {
         settings.prayerIntentions.mapNotNull { PrayerIntention.decode(it) }
     }
@@ -121,8 +131,9 @@ fun PrayerScreen(
     val c = AgapeTheme.colors
 
     fun toggleReminder(hour: PrayerHour) = scope.launch {
+        val defaultTime = scheduleByHourId[hour.id]?.suggestedTime ?: hour.time
         val updated = if (hour.id in reminders) settings.hourReminders.filterNot { it.startsWith("${hour.id}@") }.toSet()
-        else settings.hourReminders + HourReminder(hour.id, LocalTime.parse(hour.time)).encode()
+        else settings.hourReminders + HourReminder(hour.id, LocalTime.parse(defaultTime)).encode()
         container.settings.setHourReminders(updated)
         if (!settings.prayerNotifications) container.settings.setPrayerNotifications(true)
         Notifications.reschedule(container.appContext())
@@ -223,6 +234,15 @@ fun PrayerScreen(
                     }
                 }
             }
+        }
+
+        // Smart Schedule: Room-backed daily prayer schedule based on local sunrise & sunset
+        item {
+            SmartScheduleCard(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                openHour = openHour,
+                initiallyExpanded = false,
+            )
         }
 
         // Interactive Chotki (Prayer Rope) for the Jesus Prayer
@@ -380,7 +400,9 @@ fun PrayerScreen(
         item { Kicker(stringResource(R.string.prayer_hours), Modifier.padding(start = 20.dp, top = 20.dp, bottom = 4.dp)) }
         items(book.hours, key = { it.id }) { hour ->
             val isNow = hour.id == current?.id
-            val configuredTime = reminders[hour.id]?.let { "%02d:%02d".format(it.time.hour, it.time.minute) } ?: hour.time
+            val configuredTime = reminders[hour.id]?.let { "%02d:%02d".format(it.time.hour, it.time.minute) }
+                ?: scheduleByHourId[hour.id]?.suggestedTime
+                ?: hour.time
             ListRow(
                 title = hour.name[lang],
                 subtitle = hour.subtitle[lang],

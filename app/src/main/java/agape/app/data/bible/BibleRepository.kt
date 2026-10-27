@@ -198,10 +198,35 @@ class BibleRepository(private val context: Context) {
         arrayOf(book, limit.toString()),
     )
 
-    /** Verses containing [query] in the translation of [language]. */
-    suspend fun searchVerses(query: String, language: AppLanguage, limit: Int = 80): List<Verse> = withContext(Dispatchers.IO) {
+    /** Verses containing [query] in the translation of [language], ordered with the 4 Gospels first and then canonical priority. */
+    suspend fun searchVerses(query: String, language: AppLanguage, limit: Int = 200): List<Verse> = withContext(Dispatchers.IO) {
         database().rawQuery(
-            "SELECT book, chapter, verse, text FROM verses WHERE translation = ? AND text LIKE ? ESCAPE '\\' LIMIT ?",
+            """SELECT book, chapter, verse, text FROM verses
+               WHERE translation = ? AND text LIKE ? ESCAPE '\'
+               ORDER BY CASE book
+                   WHEN 'MAT' THEN 1
+                   WHEN 'MRK' THEN 2
+                   WHEN 'LUK' THEN 3
+                   WHEN 'JHN' THEN 4
+                   WHEN 'ACT' THEN 5
+                   WHEN 'ROM' THEN 6
+                   WHEN 'PSA' THEN 7
+                   WHEN 'GEN' THEN 8
+                   WHEN 'ISA' THEN 9
+                   WHEN '1CO' THEN 10
+                   WHEN '2CO' THEN 11
+                   WHEN 'GAL' THEN 12
+                   WHEN 'EPH' THEN 13
+                   WHEN 'PHP' THEN 14
+                   WHEN 'COL' THEN 15
+                   WHEN 'HEB' THEN 16
+                   WHEN 'JAS' THEN 17
+                   WHEN '1PE' THEN 18
+                   WHEN '1JN' THEN 19
+                   WHEN 'REV' THEN 20
+                   ELSE 30
+               END, chapter, verse
+               LIMIT ?""",
             arrayOf(translation(language), "%" + escapeLike(query) + "%", limit.toString()),
         ).use { c -> buildList { while (c.moveToNext()) add(Verse(c.getString(0), c.getInt(1), c.getInt(2), cleanVerseText(c.getString(3)))) } }
     }

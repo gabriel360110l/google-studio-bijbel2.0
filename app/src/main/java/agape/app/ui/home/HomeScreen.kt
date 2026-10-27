@@ -37,6 +37,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +62,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Landscape
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -81,11 +83,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -320,21 +325,30 @@ fun HomeScreen(
         // Reading
         item {
             val pos = settings.lastPosition
-            Section(stringResource(R.string.home_reading)) {
+            AgapeCard(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                onClick = { if (pos != null) openReader(pos.book, pos.chapter, pos.verse) else openTab(BibleRoute) },
+            ) {
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .clickable { if (pos != null) openReader(pos.book, pos.chapter, pos.verse) else openTab(BibleRoute) }
-                        .padding(vertical = 10.dp),
+                    Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.home_open_bible), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Medium), color = c.ink)
+                        Kicker(stringResource(R.string.home_reading))
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.home_open_bible),
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = c.ink,
+                        )
                         Text(
                             if (pos != null) "${container.bookName(pos.book, lang)} ${pos.chapter}" else stringResource(R.string.home_start_reading),
-                            style = MaterialTheme.typography.bodyMedium, color = c.inkMuted,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = c.inkMuted,
                         )
                     }
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = c.inkFaint)
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = c.accent)
                 }
             }
         }
@@ -343,10 +357,25 @@ fun HomeScreen(
         item {
             val s = stats
             Section(stringResource(R.string.home_progress)) {
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                    Stat("${s?.currentStreak ?: 0}", stringResource(R.string.home_stat_streak))
-                    Stat("${s?.chaptersRead ?: 0}/$totalChapters", stringResource(R.string.home_stat_read))
-                    Stat("${s?.hoursPrayed ?: 0}", stringResource(R.string.home_stat_prayed))
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Stat(
+                        value = "${s?.currentStreak ?: 0}",
+                        label = stringResource(R.string.home_stat_streak),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Stat(
+                        value = "${s?.chaptersRead ?: 0}/$totalChapters",
+                        label = stringResource(R.string.home_stat_read),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Stat(
+                        value = "${s?.hoursPrayed ?: 0}",
+                        label = stringResource(R.string.home_stat_prayed),
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
@@ -467,31 +496,56 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Stat(value: String, label: String) {
+private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
     val c = AgapeTheme.colors
-    Row(verticalAlignment = Alignment.Bottom) {
-        Text(value, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold), color = c.ink)
-        Spacer(Modifier.width(6.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted, modifier = Modifier.padding(bottom = 3.dp))
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(c.surface)
+            .border(0.8.dp, c.accent.copy(alpha = 0.32f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        Text(
+            value,
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+            color = c.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = c.inkMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 @Composable
 private fun RoundIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
+    val c = AgapeTheme.colors
     Box(
-        Modifier.size(46.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.28f))
-            .border(1.dp, OnBackdrop.copy(alpha = 0.35f), CircleShape).clickable(onClick = onClick),
+        Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.36f))
+            .border(1.dp, c.accent.copy(alpha = 0.55f), CircleShape)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = OnBackdrop, modifier = Modifier.size(22.dp)) }
 }
 
 @Composable
 private fun BackdropButton(text: String, filled: Boolean, onClick: () -> Unit) {
+    val c = AgapeTheme.colors
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = if (filled) OnBackdrop else Color.Black.copy(alpha = 0.25f),
-        border = if (filled) null else BorderStroke(1.dp, OnBackdrop.copy(alpha = 0.45f)),
+        color = if (filled) OnBackdrop else Color.Black.copy(alpha = 0.32f),
+        border = BorderStroke(1.dp, if (filled) c.accent.copy(alpha = 0.7f) else OnBackdrop.copy(alpha = 0.48f)),
     ) {
         Text(
             text, style = MaterialTheme.typography.labelLarge, color = if (filled) Color(0xFF1A1512) else OnBackdrop,

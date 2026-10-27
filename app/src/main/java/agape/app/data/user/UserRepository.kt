@@ -37,6 +37,7 @@ class UserRepository(private val db: UserDatabase) {
     val quizResults = dao.quizResults()
     val favorites = dao.favorites()
     val chaptersRead = dao.chaptersRead()
+    val smartSchedule: Flow<List<SmartScheduleEntry>> = dao.smartSchedule()
 
     fun highlightsIn(book: String, chapter: Int) = dao.highlightsIn(book, chapter)
 
@@ -133,6 +134,26 @@ class UserRepository(private val db: UserDatabase) {
         if (on) dao.upsertFavorite(FavoritePrayer(id, System.currentTimeMillis())) else dao.deleteFavorite(id)
         changed()
     }
+
+    suspend fun saveSmartSchedule(entries: List<SmartScheduleEntry>) {
+        dao.clearSmartSchedule()
+        dao.upsertSmartSchedule(entries)
+        changed()
+    }
+
+    suspend fun setSmartScheduleEnabled(hourId: String, enabled: Boolean) {
+        dao.setSmartScheduleEnabled(hourId, enabled)
+        changed()
+    }
+
+    suspend fun updateSmartScheduleTime(entry: SmartScheduleEntry) {
+        dao.upsertSmartScheduleEntry(entry)
+        changed()
+    }
+
+    suspend fun allActivityList(): List<Activity> = dao.allActivity()
+    suspend fun allFavoritesList(): List<FavoritePrayer> = dao.allFavorites()
+    suspend fun allSmartScheduleList(): List<SmartScheduleEntry> = dao.allSmartSchedule()
 
     suspend fun snapshot(): UserSnapshot = UserSnapshot(
         dao.allBookmarks(), dao.allHighlights(), dao.allNotes(), dao.allChaptersRead(),

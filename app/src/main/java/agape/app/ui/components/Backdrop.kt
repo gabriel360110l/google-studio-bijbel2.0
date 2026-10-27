@@ -48,10 +48,11 @@ fun Backdrop(entry: BackgroundEntry?, modifier: Modifier = Modifier, content: @C
         Box(
             Modifier.matchParentSize().background(
                 Brush.verticalGradient(
-                    0f to BackdropInk.copy(alpha = 0.45f),
-                    0.28f to BackdropInk.copy(alpha = 0.10f),
-                    0.62f to BackdropInk.copy(alpha = 0.55f),
-                    0.86f to BackdropInk.copy(alpha = 0.92f),
+                    0f to BackdropInk.copy(alpha = 0.50f),
+                    0.22f to BackdropInk.copy(alpha = 0.26f),
+                    0.48f to BackdropInk.copy(alpha = 0.48f),
+                    0.72f to BackdropInk.copy(alpha = 0.72f),
+                    0.90f to BackdropInk.copy(alpha = 0.94f),
                     1f to c.background,
                 ),
             ),

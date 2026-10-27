@@ -64,6 +64,25 @@ data class FavoritePrayer(
     val addedAt: Long,
 )
 
+@Serializable
+@Entity(tableName = "smart_schedule", primaryKeys = ["hourId"])
+data class SmartScheduleEntry(
+    val hourId: String,
+    /** Suggested local prayer time in `HH:mm` format derived from local sunrise/sunset & Room prayer activity. */
+    val suggestedTime: String,
+    /** Solar anchor key: DAWN, SUNRISE, MORNING, MIDDAY, AFTERNOON, SUNSET, EVENING, NIGHT. */
+    val solarAnchor: String,
+    val sunriseTime: String,
+    val sunsetTime: String,
+    val solarNoonTime: String,
+    val locationLabel: String,
+    val latitude: Double,
+    val longitude: Double,
+    val weatherSummary: String,
+    val enabled: Boolean,
+    val updatedAt: Long,
+)
+
 class Converters {
     @androidx.room.TypeConverter
     fun fromDays(days: Set<Int>): String = days.sorted().joinToString(",")
@@ -105,6 +124,12 @@ interface UserDao {
     @Upsert suspend fun upsertFavorite(f: FavoritePrayer)
     @Query("DELETE FROM favorite_prayers WHERE id = :id") suspend fun deleteFavorite(id: String)
 
+    @Query("SELECT * FROM smart_schedule ORDER BY suggestedTime ASC") fun smartSchedule(): Flow<List<SmartScheduleEntry>>
+    @Upsert suspend fun upsertSmartSchedule(entries: List<SmartScheduleEntry>)
+    @Upsert suspend fun upsertSmartScheduleEntry(entry: SmartScheduleEntry)
+    @Query("UPDATE smart_schedule SET enabled = :enabled WHERE hourId = :hourId") suspend fun setSmartScheduleEnabled(hourId: String, enabled: Boolean)
+    @Query("DELETE FROM smart_schedule") suspend fun clearSmartSchedule()
+
     @Query("SELECT * FROM bookmarks") suspend fun allBookmarks(): List<Bookmark>
     @Query("SELECT * FROM highlights") suspend fun allHighlights(): List<Highlight>
     @Query("SELECT * FROM notes") suspend fun allNotes(): List<Note>
@@ -113,11 +138,22 @@ interface UserDao {
     @Query("SELECT * FROM plan_progress") suspend fun allPlans(): List<PlanProgress>
     @Query("SELECT * FROM quiz_results") suspend fun allQuizResults(): List<QuizResult>
     @Query("SELECT * FROM favorite_prayers") suspend fun allFavorites(): List<FavoritePrayer>
+    @Query("SELECT * FROM smart_schedule") suspend fun allSmartSchedule(): List<SmartScheduleEntry>
 }
 
 @Database(
-    entities = [Bookmark::class, Highlight::class, Note::class, ChapterRead::class, Activity::class, PlanProgress::class, QuizResult::class, FavoritePrayer::class],
-    version = 1,
+    entities = [
+        Bookmark::class,
+        Highlight::class,
+        Note::class,
+        ChapterRead::class,
+        Activity::class,
+        PlanProgress::class,
+        QuizResult::class,
+        FavoritePrayer::class,
+        SmartScheduleEntry::class,
+    ],
+    version = 2,
     exportSchema = true,
 )
 @androidx.room.TypeConverters(Converters::class)
@@ -126,6 +162,8 @@ abstract class UserDatabase : RoomDatabase() {
 
     companion object {
         fun create(context: Context): UserDatabase =
-            Room.databaseBuilder(context, UserDatabase::class.java, "agape_user.db").build()
+            Room.databaseBuilder(context, UserDatabase::class.java, "agape_user.db")
+                .fallbackToDestructiveMigration()
+                .build()
     }
 }

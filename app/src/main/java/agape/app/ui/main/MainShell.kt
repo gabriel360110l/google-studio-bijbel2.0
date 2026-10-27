@@ -82,9 +82,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -174,35 +176,61 @@ private fun BottomBar(current: Tab?, onSelect: (Tab) -> Unit) {
     val bar = if (c.isDark) c.surfaceRaised else c.ink
     val on = if (c.isDark) c.ink else c.background
     Box(
-        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(start = 16.dp, end = 16.dp, bottom = 10.dp, top = 4.dp),
+        Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(start = 16.dp, end = 16.dp, bottom = 10.dp, top = 4.dp),
     ) {
         Row(
-            Modifier.fillMaxWidth()
-                .shadow(24.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.45f))
+            Modifier
+                .fillMaxWidth()
+                .shadow(26.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.38f), spotColor = Color.Black.copy(alpha = 0.48f))
                 .clip(CircleShape)
-                .background(bar.copy(alpha = 0.94f))
-                .border(0.8.dp, on.copy(alpha = 0.10f), CircleShape)
+                .background(bar.copy(alpha = 0.95f))
+                .border(
+                    width = 1.dp,
+                    brush = Brush.horizontalGradient(
+                        listOf(
+                            c.accent.copy(alpha = 0.28f),
+                            c.accent.copy(alpha = 0.58f),
+                            c.accent.copy(alpha = 0.28f),
+                        ),
+                    ),
+                    shape = CircleShape,
+                )
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             tabs.forEach { tab ->
                 val selected = tab == current
                 val label = stringResource(tab.label)
-                val pill by animateColorAsState(if (selected) on.copy(alpha = 0.10f) else Color.Transparent, label = "tab")
+                val pill by animateColorAsState(if (selected) c.accent.copy(alpha = 0.18f) else Color.Transparent, label = "tab")
                 Column(
-                    Modifier.weight(1f).clip(CircleShape).background(pill)
+                    Modifier
+                        .weight(1f)
+                        .clip(CircleShape)
+                        .background(pill)
+                        .then(
+                            if (selected) Modifier.border(0.8.dp, c.accent.copy(alpha = 0.45f), CircleShape)
+                            else Modifier
+                        )
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
                         .padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
                         if (selected) tab.selectedIcon else tab.icon, null,
-                        tint = if (selected) on else on.copy(alpha = 0.62f), modifier = Modifier.size(25.dp),
+                        tint = if (selected) c.accent else on.copy(alpha = 0.65f),
+                        modifier = Modifier.size(24.dp),
                     )
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        label, style = MaterialTheme.typography.labelSmall, maxLines = 1,
-                        color = if (selected) on else on.copy(alpha = 0.62f),
+                        label,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        ),
+                        maxLines = 1,
+                        color = if (selected) on else on.copy(alpha = 0.65f),
                     )
                 }
             }

@@ -10,6 +10,7 @@ import agape.app.data.content.Backgrounds
 import agape.app.data.content.ContentRepository
 import agape.app.data.daily.DailyRepository
 import agape.app.data.saints.SaintsRepository
+import agape.app.data.schedule.SmartScheduleService
 import agape.app.data.sync.SyncRepository
 import agape.app.data.user.UserDatabase
 import agape.app.data.user.UserRepository
@@ -56,6 +57,7 @@ class AppContainer(private val app: Application) {
     val daily = DailyRepository(content, settings)
     val saints = SaintsRepository(content)
     val backgrounds = Backgrounds(app)
+    val smartSchedule = SmartScheduleService(app, content, user, settings)
 
     /** The language the app is shown in. English unless the user picked Dutch. */
     fun language(): AppLanguage = AppLanguage.fromTag(AppCompatDelegate.getApplicationLocales()[0]?.language)

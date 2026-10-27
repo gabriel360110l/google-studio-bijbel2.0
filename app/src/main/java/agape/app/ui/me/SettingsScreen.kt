@@ -23,6 +23,7 @@ import agape.app.ui.onboarding.StyleSwatches
 import agape.app.ui.onboarding.ThemeModeSwitch
 import agape.app.ui.onboarding.styleName
 import agape.app.ui.onboarding.traditionName
+import agape.app.ui.prayer.SmartScheduleCard
 import agape.app.ui.theme.AgapeTheme
 import agape.app.ui.tradition
 import android.Manifest
@@ -313,6 +314,9 @@ fun SettingsScreen(onBack: () -> Unit, openLegal: (String) -> Unit) {
                     }
                 }
             }
+            // Smart Schedule card (Room DB + Sunrise/Sunset API)
+            SmartScheduleCard(initiallyExpanded = true)
+
             SettingsCard(R.string.settings_notifications) {
                 ToggleRow(stringResource(R.string.settings_notify_hours), stringResource(R.string.settings_notify_hours_hint), settings.prayerNotifications) { on ->
                     if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notifications.canPost(context)) {

@@ -21,6 +21,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,8 +38,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,6 +60,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 private enum class BibleTab { BOOKS, CHURCH }
+private enum class BookSectionFilter { GOSPELS, NT, OT, ALL }
+
+private val gospelIds = setOf("MAT", "MRK", "LUK", "JHN")
+
+private fun normalizeForBookFilter(input: String): String {
+    val decomposed = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+    return decomposed.replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "").lowercase().trim()
+}
 
 @Composable
 fun BibleScreen(
@@ -68,12 +79,41 @@ fun BibleScreen(
     openPlans: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(BibleTab.BOOKS) }
-    var testament by rememberSaveable { mutableStateOf(Testament.OT) }
+    var sectionFilter by rememberSaveable { mutableStateOf(BookSectionFilter.GOSPELS) }
+    var bookQuery by rememberSaveable { mutableStateOf("") }
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
     val container = LocalContainer.current
     val lang = LocalLanguage.current
+    val nl = lang == agape.app.core.model.AppLanguage.DUTCH
     val tradition = tradition
     val books = remember(tradition, lang) { container.content.canon(tradition, lang) }
+    val c = AgapeTheme.colors
+
+    val filteredBooks = remember(books, sectionFilter, bookQuery, lang) {
+        val q = normalizeForBookFilter(bookQuery)
+        if (q.isNotEmpty()) {
+            if (q.contains("evangeli") || q.contains("gospel")) {
+                books.filter { it.id in gospelIds }
+            } else {
+                books.filter { b ->
+                    normalizeForBookFilter(b.name[lang]).contains(q) ||
+                        normalizeForBookFilter(b.name.nl).contains(q) ||
+                        normalizeForBookFilter(b.name.en).contains(q) ||
+                        b.id.lowercase().contains(q) ||
+                        (b.id == "MAT" && ("mattheus".contains(q) || "matteus".contains(q))) ||
+                        (b.id == "MRK" && ("markus".contains(q) || "marcus".contains(q))) ||
+                        (b.id == "LUK" && ("lukas".contains(q) || "lucas".contains(q)))
+                }
+            }
+        } else {
+            when (sectionFilter) {
+                BookSectionFilter.GOSPELS -> books.filter { it.id in gospelIds }
+                BookSectionFilter.NT -> books.filter { it.testament == Testament.NT }
+                BookSectionFilter.OT -> books.filter { it.testament == Testament.OT }
+                BookSectionFilter.ALL -> books
+            }
+        }
+    }
 
     LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -97,12 +137,62 @@ fun BibleScreen(
                     }
                 }
                 item {
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Pill(stringResource(R.string.bible_ot), testament == Testament.OT, { testament = Testament.OT })
-                        Pill(stringResource(R.string.bible_nt), testament == Testament.NT, { testament = Testament.NT })
+                    androidx.compose.material3.OutlinedTextField(
+                        value = bookQuery,
+                        onValueChange = { bookQuery = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        placeholder = {
+                            Text(if (nl) "Zoek boek (bijv. Matteüs, Johannes, Psalmen)…" else "Find book (e.g. Matthew, John, Psalms)…")
+                        },
+                        leadingIcon = {
+                            Icon(androidx.compose.material.icons.Icons.Outlined.Search, null, tint = c.inkMuted)
+                        },
+                        trailingIcon = {
+                            if (bookQuery.isNotEmpty()) {
+                                androidx.compose.material3.IconButton(onClick = { bookQuery = "" }) {
+                                    Icon(androidx.compose.material.icons.Icons.Outlined.Close, null, tint = c.inkMuted)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = cardShape,
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = c.primary,
+                            unfocusedBorderColor = c.line,
+                            focusedContainerColor = c.surface,
+                            unfocusedContainerColor = c.surface,
+                            cursorColor = c.primary,
+                        ),
+                    )
+                    Row(
+                        Modifier
+                            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Pill(
+                            if (nl) "4 Evangeliën" else "4 Gospels",
+                            bookQuery.isEmpty() && sectionFilter == BookSectionFilter.GOSPELS,
+                            { bookQuery = ""; sectionFilter = BookSectionFilter.GOSPELS },
+                        )
+                        Pill(
+                            stringResource(R.string.bible_nt),
+                            bookQuery.isEmpty() && sectionFilter == BookSectionFilter.NT,
+                            { bookQuery = ""; sectionFilter = BookSectionFilter.NT },
+                        )
+                        Pill(
+                            stringResource(R.string.bible_ot),
+                            bookQuery.isEmpty() && sectionFilter == BookSectionFilter.OT,
+                            { bookQuery = ""; sectionFilter = BookSectionFilter.OT },
+                        )
+                        Pill(
+                            if (nl) "Alle boeken" else "All books",
+                            bookQuery.isEmpty() && sectionFilter == BookSectionFilter.ALL,
+                            { bookQuery = ""; sectionFilter = BookSectionFilter.ALL },
+                        )
                     }
                 }
-                items(books.filter { it.testament == testament }, key = { it.id }) { book ->
+                items(filteredBooks, key = { it.id }) { book ->
                     BookRow(
                         book = book,
                         expanded = expanded == book.id,
