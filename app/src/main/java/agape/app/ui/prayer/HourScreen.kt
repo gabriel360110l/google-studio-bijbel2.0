@@ -13,15 +13,21 @@ import agape.app.ui.components.AgapeCard
 import agape.app.ui.components.DetailTopBar
 import agape.app.ui.components.Kicker
 import agape.app.ui.components.Ornament
+import agape.app.ui.components.PrayerAudioBar
 import agape.app.ui.components.PrimaryButton
 import agape.app.ui.components.ProgressLine
 import agape.app.ui.components.SpeakerButton
 import agape.app.ui.components.SpeakerPill
+import agape.app.ui.components.SpokenPrayerItem
+import agape.app.ui.components.rememberAgapeSpeaker
 import agape.app.ui.theme.AgapeTheme
 import agape.app.ui.tradition
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -35,12 +41,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -88,17 +95,25 @@ fun HourScreen(hourId: String, onBack: () -> Unit) {
     val progress by remember { derivedStateOf { list.firstVisibleItemIndex / sections.size.coerceAtLeast(1).toFloat() } }
     val c = AgapeTheme.colors
     val nl = lang == AppLanguage.DUTCH
-    val untranslated = lang == AppLanguage.DUTCH && sections.any { s -> s.kind in listOf(PrayerSection.Kind.text, PrayerSection.Kind.rubric) && s.body != null && s.body.nl.isEmpty() && s.body.en.isNotEmpty() }
+    val untranslated = lang == AppLanguage.DUTCH && sections.any { s ->
+        s.kind in listOf(PrayerSection.Kind.text, PrayerSection.Kind.rubric) &&
+            s.body != null && s.body.nl.isEmpty() && s.body.en.isNotEmpty()
+    }
 
     val intentions = remember(settings.prayerIntentions) {
         settings.prayerIntentions.mapNotNull { PrayerIntention.decode(it) }
     }
 
-    val spokenHourText = remember(hour, sections, lang) {
-        buildString {
-            append(hour.name[lang]).append(". ")
-            if (hour.subtitle[lang].isNotBlank()) append(hour.subtitle[lang]).append(". ")
-            sections.forEach { sec ->
+    // Build structured spoken items mapped to each section index so we can highlight & auto-scroll
+    val sectionSpeechMap = remember(hour, sections, intentions, lang) {
+        val listItems = mutableListOf< Pair<Int, SpokenPrayerItem> >()
+        sections.forEachIndexed { secIdx, sec ->
+            val label = sec.title?.get(lang)?.takeIf { it.isNotBlank() } ?: hour.name[lang]
+            val bodyText = buildString {
+                if (secIdx == 0) {
+                    append(hour.name[lang]).append(". ")
+                    if (hour.subtitle[lang].isNotBlank()) append(hour.subtitle[lang]).append(". ")
+                }
                 when (sec.kind) {
                     PrayerSection.Kind.text, PrayerSection.Kind.heading -> {
                         sec.title?.get(lang)?.takeIf { it.isNotBlank() }?.let { append(it).append(". ") }
@@ -115,19 +130,72 @@ fun HourScreen(hourId: String, onBack: () -> Unit) {
                         sec.title?.get(lang)?.let { append(it).append(". ") }
                         sec.body?.get(lang)?.forEach { append(it).append(" ") }
                     }
+                    PrayerSection.Kind.counter -> {
+                        sec.title?.get(lang)?.let { append(it).append(". ") }
+                        sec.body?.get(lang)?.firstOrNull()?.let { append(it).append(".") }
+                    }
                     else -> {}
                 }
+            }.trim()
+
+            if (bodyText.isNotBlank()) {
+                listItems += secIdx to SpokenPrayerItem(
+                    index = listItems.size,
+                    label = label,
+                    text = bodyText,
+                )
             }
+        }
+        if (intentions.isNotEmpty()) {
+            val intentionSpeech = buildString {
+                append(
+                    if (nl) "Gedenk, o Heer, uw dienaren en verhoor onze gebeden. "
+                    else "Remember, O Lord, Your servants and hear our prayers. ",
+                )
+                IntentionCategory.entries.forEach { cat ->
+                    val forCat = intentions.filter { it.category == cat }
+                    if (forCat.isNotEmpty()) {
+                        append(cat.title[lang]).append(": ")
+                        append(forCat.joinToString(", ") { it.text }).append(". ")
+                    }
+                }
+            }.trim()
+            listItems += sections.size to SpokenPrayerItem(
+                index = listItems.size,
+                label = if (nl) "Gebedsintenties" else "Intentions",
+                text = intentionSpeech,
+            )
+        }
+        listItems
+    }
+
+    val spokenItems = remember(sectionSpeechMap) { sectionSpeechMap.map { it.second } }
+    val speaker = rememberAgapeSpeaker(items = spokenItems, title = hour.name[lang])
+    val activeSectionIndex = remember(speaker.isActive, speaker.currentIndex, sectionSpeechMap) {
+        if (speaker.isActive) sectionSpeechMap.getOrNull(speaker.currentIndex)?.first else null
+    }
+
+    LaunchedEffect(activeSectionIndex, speaker.isSpeaking) {
+        if (activeSectionIndex != null && speaker.isSpeaking) {
+            // Item 0 in LazyColumn is the header, so section index i is at LazyColumn index i + 1
+            list.animateScrollToItem((activeSectionIndex + 1).coerceAtLeast(0))
         }
     }
 
     Column(Modifier.fillMaxSize()) {
         DetailTopBar(hour.name[lang], onBack) {
-            SpeakerButton(spokenHourText)
+            SpeakerButton(text = "", speakerState = speaker)
             FavoriteButton("hour:${hour.id}")
         }
+        AnimatedVisibility(visible = speaker.isActive) {
+            PrayerAudioBar(
+                speaker = speaker,
+                title = hour.name[lang],
+                lang = lang,
+            )
+        }
         ProgressLine(progress, Modifier.padding(horizontal = 20.dp))
-        LazyColumn(state = list, contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 48.dp)) {
+        LazyColumn(state = list, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 48.dp)) {
             item {
                 Column(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     if (hour.time.isNotBlank()) Kicker(hour.time)
@@ -135,7 +203,7 @@ fun HourScreen(hourId: String, onBack: () -> Unit) {
                     Text(hour.name[lang], style = MaterialTheme.typography.displaySmall, color = c.primary, textAlign = TextAlign.Center)
                     Text(hour.subtitle[lang], style = MaterialTheme.typography.titleMedium, color = c.accent, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
-                    SpeakerPill(spokenHourText)
+                    SpeakerPill(text = "", speakerState = speaker)
                     Spacer(Modifier.height(14.dp))
                     Ornament()
                     if (untranslated) {
@@ -144,17 +212,50 @@ fun HourScreen(hourId: String, onBack: () -> Unit) {
                     }
                 }
             }
-            items(sections.size) { i -> PrayerSectionView(sections[i]) }
+            items(sections.size) { i ->
+                val isSpokenSection = activeSectionIndex == i
+                val sectionBg by animateColorAsState(
+                    if (isSpokenSection) c.primary.copy(alpha = 0.11f) else Color.Transparent,
+                    label = "spoken_section_bg",
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(sectionBg)
+                        .then(
+                            if (isSpokenSection) {
+                                Modifier.border(1.dp, c.primary.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .padding(horizontal = if (isSpokenSection) 10.dp else 4.dp, vertical = 2.dp),
+                ) {
+                    Column {
+                        PrayerSectionView(sections[i])
+                    }
+                }
+            }
 
             // Personal prayer intentions & names (Diptycha)
             if (intentions.isNotEmpty()) {
                 item {
+                    val isSpokenIntentions = activeSectionIndex == sections.size
                     Spacer(Modifier.height(24.dp))
-                    AgapeCard(tonal = true) {
+                    AgapeCard(
+                        tonal = true,
+                        modifier = if (isSpokenIntentions) {
+                            Modifier.border(1.dp, c.primary.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+                        } else {
+                            Modifier
+                        },
+                    ) {
                         Kicker(if (nl) "Persoonlijke gebedsintenties & namen" else "Personal Prayer Intentions & Names")
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            if (nl) "Gedenk, o Heer, uw dienaren en verhear onze gebeden:"
+                            if (nl) "Gedenk, o Heer, uw dienaren en verhoor onze gebeden:"
                             else "Remember, O Lord, Your servants and hear our prayers:",
                             style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
                             color = c.inkMuted,
@@ -220,8 +321,10 @@ private fun PrayerSectionView(section: PrayerSection) {
             Column(Modifier.fillMaxWidth().padding(top = 30.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Ornament(width = 90.dp)
                 Spacer(Modifier.height(10.dp))
-                Text(section.title?.get(lang).orEmpty(), style = MaterialTheme.typography.headlineSmall, color = c.primary, textAlign = TextAlign.Center,
-                    modifier = Modifier.semantics { heading() })
+                Text(
+                    section.title?.get(lang).orEmpty(), style = MaterialTheme.typography.headlineSmall, color = c.primary, textAlign = TextAlign.Center,
+                    modifier = Modifier.semantics { heading() },
+                )
                 section.body?.get(lang)?.firstOrNull()?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.inkMuted, textAlign = TextAlign.Center) }
             }
         }
@@ -316,33 +419,96 @@ fun PrayerTextScreen(prayerId: String, onBack: () -> Unit) {
     val prayer = remember(prayerId) { container.content.prayer(prayerId) } ?: return
     var prayed by remember { mutableStateOf(false) }
     val c = AgapeTheme.colors
-    val fullSpeech = remember(prayer, lang) {
-        buildString {
-            append(prayer.title[lang]).append(". ")
-            prayer.body[lang].forEach { append(it).append(" ") }
+    val paragraphs = remember(prayer, lang) { prayer.body[lang].filter { it.isNotBlank() } }
+    val spokenItems = remember(prayer, paragraphs, lang) {
+        paragraphs.mapIndexed { idx, para ->
+            val spokenText = if (idx == 0) "${prayer.title[lang]}. $para" else para
+            SpokenPrayerItem(
+                index = idx,
+                label = "${idx + 1}/${paragraphs.size}",
+                text = spokenText,
+            )
         }
     }
+    val speaker = rememberAgapeSpeaker(items = spokenItems, title = prayer.title[lang])
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(speaker.currentIndex, speaker.isSpeaking) {
+        if (speaker.isActive && speaker.isSpeaking) {
+            listState.animateScrollToItem((speaker.currentIndex + 1).coerceAtLeast(0))
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         DetailTopBar(prayer.title[lang], onBack) {
-            SpeakerButton(fullSpeech)
+            SpeakerButton(text = "", speakerState = speaker)
             FavoriteButton("prayer:${prayer.id}")
         }
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(prayer.title[lang], style = MaterialTheme.typography.displaySmall, color = c.primary, textAlign = TextAlign.Center)
-                if (prayer.subtitle[lang].isNotBlank()) Text(prayer.subtitle[lang], style = MaterialTheme.typography.titleMedium, color = c.accent)
-                Spacer(Modifier.height(12.dp))
-                SpeakerPill(fullSpeech)
-                Spacer(Modifier.height(14.dp))
-                Ornament()
+        AnimatedVisibility(visible = speaker.isActive) {
+            PrayerAudioBar(
+                speaker = speaker,
+                title = prayer.title[lang],
+                lang = lang,
+            )
+        }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 48.dp),
+        ) {
+            item {
+                Column(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(prayer.title[lang], style = MaterialTheme.typography.displaySmall, color = c.primary, textAlign = TextAlign.Center)
+                    if (prayer.subtitle[lang].isNotBlank()) Text(prayer.subtitle[lang], style = MaterialTheme.typography.titleMedium, color = c.accent, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    SpeakerPill(text = "", speakerState = speaker)
+                    Spacer(Modifier.height(14.dp))
+                    Ornament()
+                }
             }
-            prayer.body[lang].forEach { Text(it, style = AgapeTheme.type.scripture, color = c.ink, modifier = Modifier.padding(bottom = 14.dp)) }
-            Spacer(Modifier.height(16.dp))
-            if (!prayed) PrimaryButton(stringResource(R.string.prayer_amen), {
-                prayed = true
-                scope.launch { container.user.markPrayed(prayer.id, prayer.title[lang]) }
-            }) else Text(stringResource(R.string.prayer_prayed), style = MaterialTheme.typography.titleMedium, color = c.primary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(40.dp))
+            items(paragraphs.size) { idx ->
+                val isSpoken = speaker.isActive && speaker.currentIndex == idx
+                val bg by animateColorAsState(
+                    if (isSpoken) c.primary.copy(alpha = 0.12f) else Color.Transparent,
+                    label = "prayer_para_bg",
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(bg)
+                        .then(
+                            if (isSpoken) {
+                                Modifier.border(1.dp, c.primary.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .clickable { speaker.togglePlayPause(startAtIndex = idx) }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        paragraphs[idx],
+                        style = AgapeTheme.type.scripture,
+                        color = c.ink,
+                    )
+                }
+            }
+            item {
+                Spacer(Modifier.height(16.dp))
+                if (!prayed) PrimaryButton(stringResource(R.string.prayer_amen), {
+                    prayed = true
+                    scope.launch { container.user.markPrayed(prayer.id, prayer.title[lang]) }
+                }) else Text(
+                    stringResource(R.string.prayer_prayed),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = c.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(40.dp))
+            }
         }
     }
 }

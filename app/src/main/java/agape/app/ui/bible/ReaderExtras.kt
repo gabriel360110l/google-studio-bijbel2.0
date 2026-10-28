@@ -103,12 +103,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 
 // ============================================================================
-// 1. Chapter Audio Reader (TTS) Controller & Mini-Player Bar
+// 1. Chapter Audio Reader (TalkifyTTS Neural + Offline Fallback) Controller
 // ============================================================================
 
 @Stable
@@ -122,14 +123,24 @@ class ChapterAudioController(
         private set
     var currentVerseIndex by mutableIntStateOf(0)
         private set
+    var speed by mutableStateOf(agape.app.ui.components.AgapeSpeechSpeed.NATURAL)
+        private set
+    var voiceProfile by mutableStateOf(agape.app.ui.components.TalkifyVoiceProfile.MAARTEN_ANDREW)
+        private set
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val scope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate,
+    )
+    private var activeJob: kotlinx.coroutines.Job? = null
+    private var mediaPlayer: android.media.MediaPlayer? = null
     private var fallbackRunnable: Runnable? = null
     private var verses: List<Verse> = emptyList()
     private var bookTitle: String = ""
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var ttsSupported = true
+    private var pendingOfflineFallback = false
 
     val currentVerseNumber: Int?
         get() = if (isActive) verses.getOrNull(currentVerseIndex)?.verse else null
@@ -139,20 +150,28 @@ class ChapterAudioController(
 
     init {
         runCatching {
-            tts = TextToSpeech(context.applicationContext) { status ->
+            tts = agape.app.ui.components.AgapeNaturalVoice.createTts(context) { engine, status ->
                 mainHandler.post {
-                    if (status == TextToSpeech.SUCCESS) {
+                    if (status == TextToSpeech.SUCCESS && engine != null) {
+                        tts = engine
                         ttsReady = true
                         configureTts()
-                        if (isPlaying && verses.isNotEmpty()) {
-                            speakCurrentVerse()
+                        if (isPlaying && pendingOfflineFallback) {
+                            pendingOfflineFallback = false
+                            val idx = currentVerseIndex
+                            val v = verses.getOrNull(idx)
+                            if (v != null) {
+                                val textToRead = if (idx == 0 && bookTitle.isNotBlank()) {
+                                    "$bookTitle. ${v.text}"
+                                } else {
+                                    v.text
+                                }
+                                speakWithOfflineTts(textToRead, idx)
+                            }
                         }
                     } else {
                         ttsReady = false
                         ttsSupported = false
-                        if (isPlaying && verses.isNotEmpty()) {
-                            scheduleFallbackAdvance()
-                        }
                     }
                 }
             }
@@ -163,32 +182,13 @@ class ChapterAudioController(
 
     private fun configureTts() {
         val engine = tts ?: return
+        agape.app.ui.components.AgapeNaturalVoice.configureWarmMaleVoice(engine, lang, speed)
         runCatching {
-            engine.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build(),
-            )
-            val preferred = if (lang == AppLanguage.DUTCH) Locale("nl", "NL") else Locale.US
-            val fallbackNl = Locale("nl")
-            val langResult = when {
-                engine.isLanguageAvailable(preferred) >= TextToSpeech.LANG_AVAILABLE -> engine.setLanguage(preferred)
-                lang == AppLanguage.DUTCH && engine.isLanguageAvailable(fallbackNl) >= TextToSpeech.LANG_AVAILABLE -> engine.setLanguage(fallbackNl)
-                engine.isLanguageAvailable(Locale.US) >= TextToSpeech.LANG_AVAILABLE -> engine.setLanguage(Locale.US)
-                else -> engine.setLanguage(Locale.getDefault())
-            }
-            if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                // Keep engine active with default voice if available
-                engine.defaultVoice?.locale?.let { engine.setLanguage(it) }
-            }
-            engine.setSpeechRate(0.92f)
-            engine.setPitch(0.98f)
             engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
 
                 override fun onDone(utteranceId: String?) {
-                    val idx = utteranceId?.removePrefix("v_")?.toIntOrNull() ?: return
+                    val idx = utteranceId?.removePrefix("v_done_")?.toIntOrNull() ?: return
                     mainHandler.post {
                         if (isPlaying && idx == currentVerseIndex) {
                             advanceOrStop()
@@ -257,20 +257,19 @@ class ChapterAudioController(
 
     fun pause() {
         isPlaying = false
-        cancelFallback()
-        runCatching { tts?.stop() }
+        cancelPlaybackResources()
     }
 
     fun previousVerse() {
         if (verses.isEmpty()) return
-        cancelFallback()
+        cancelPlaybackResources()
         currentVerseIndex = (currentVerseIndex - 1).coerceAtLeast(0)
         if (isPlaying) speakCurrentVerse()
     }
 
     fun nextVerse() {
         if (verses.isEmpty()) return
-        cancelFallback()
+        cancelPlaybackResources()
         if (currentVerseIndex + 1 < verses.size) {
             currentVerseIndex += 1
             if (isPlaying) speakCurrentVerse()
@@ -279,16 +278,32 @@ class ChapterAudioController(
         }
     }
 
+    fun cycleSpeed() {
+        speed = speed.next()
+        tts?.let { engine ->
+            runCatching { engine.setSpeechRate(speed.rate) }
+        }
+        if (isPlaying) {
+            speakCurrentVerse()
+        }
+    }
+
+    fun cycleVoiceProfile() {
+        voiceProfile = voiceProfile.next()
+        if (isPlaying) {
+            speakCurrentVerse()
+        }
+    }
+
     fun stop() {
         isPlaying = false
         isActive = false
         currentVerseIndex = 0
-        cancelFallback()
-        runCatching { tts?.stop() }
+        cancelPlaybackResources()
     }
 
     private fun advanceOrStop() {
-        cancelFallback()
+        cancelPlaybackResources()
         if (isPlaying && currentVerseIndex + 1 < verses.size) {
             currentVerseIndex += 1
             speakCurrentVerse()
@@ -297,16 +312,25 @@ class ChapterAudioController(
         }
     }
 
-    private fun cancelFallback() {
+    private fun cancelPlaybackResources() {
+        pendingOfflineFallback = false
+        activeJob?.cancel()
+        activeJob = null
         fallbackRunnable?.let { mainHandler.removeCallbacks(it) }
         fallbackRunnable = null
+        runCatching {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        }
+        mediaPlayer = null
+        runCatching { tts?.stop() }
     }
 
     private fun scheduleFallbackAdvance() {
-        cancelFallback()
+        fallbackRunnable?.let { mainHandler.removeCallbacks(it) }
         val v = verses.getOrNull(currentVerseIndex) ?: return
         val words = v.text.split(Regex("\\s+")).size.coerceAtLeast(6)
-        val durationMs = (words * 240L).coerceIn(2800L, 9500L)
+        val durationMs = (words * 260L).coerceIn(2800L, 10500L)
         val r = Runnable {
             if (isPlaying) {
                 advanceOrStop()
@@ -317,33 +341,87 @@ class ChapterAudioController(
     }
 
     private fun speakCurrentVerse() {
-        cancelFallback()
+        cancelPlaybackResources()
         if (verses.isEmpty()) return
-        val v = verses.getOrNull(currentVerseIndex) ?: return
-        val textToRead = if (currentVerseIndex == 0 && bookTitle.isNotBlank()) {
+        val idx = currentVerseIndex
+        val v = verses.getOrNull(idx) ?: return
+        val textToRead = if (idx == 0 && bookTitle.isNotBlank()) {
             "$bookTitle. ${v.text}"
         } else {
             v.text
         }
 
+        activeJob = scope.launch {
+            val audioResult = agape.app.ui.components.TalkifyNeuralSynthesizer.synthesizeToFile(
+                context = context,
+                text = textToRead,
+                lang = lang,
+                speed = speed,
+                voiceProfile = voiceProfile,
+            )
+            if (!isPlaying || currentVerseIndex != idx) return@launch
+
+            // Pre-fetch the next verse ONLY after the current verse is synthesized
+            verses.getOrNull(idx + 1)?.let { next1 ->
+                agape.app.ui.components.TalkifyNeuralSynthesizer.prefetchInBackground(
+                    context,
+                    next1.text,
+                    lang,
+                    speed,
+                    voiceProfile,
+                )
+            }
+
+            if (audioResult != null) {
+                mediaPlayer = agape.app.ui.components.TalkifyNeuralSynthesizer.playMp3Result(
+                    result = audioResult,
+                    speed = speed,
+                    voiceProfile = voiceProfile,
+                    onFinished = {
+                        scope.launch {
+                            // Natural breathing pause between consecutive Bible verses
+                            kotlinx.coroutines.delay(450L)
+                            if (isPlaying && currentVerseIndex == idx) {
+                                advanceOrStop()
+                            }
+                        }
+                    },
+                    onError = {
+                        mainHandler.post {
+                            if (isPlaying && currentVerseIndex == idx) {
+                                speakWithOfflineTts(textToRead, idx)
+                            }
+                        }
+                    },
+                )
+            } else {
+                speakWithOfflineTts(textToRead, idx)
+            }
+        }
+    }
+
+    private fun speakWithOfflineTts(textToRead: String, idx: Int) {
         val engine = tts
         if (engine == null || !ttsSupported) {
             scheduleFallbackAdvance()
             return
         }
         if (!ttsReady) {
-            // Will start automatically once onInit completes; also arm a safety timer in case TTS init hangs
+            pendingOfflineFallback = true
             scheduleFallbackAdvance()
             return
         }
 
-        val params = Bundle().apply {
-            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
-            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
-        }
-        val res = runCatching {
-            engine.speak(textToRead, TextToSpeech.QUEUE_FLUSH, params, "v_$currentVerseIndex")
-        }.getOrDefault(TextToSpeech.ERROR)
+        fallbackRunnable?.let { mainHandler.removeCallbacks(it) }
+        fallbackRunnable = null
+        agape.app.ui.components.AgapeNaturalVoice.configureWarmMaleVoice(engine, lang, speed)
+
+        val res = agape.app.ui.components.AgapeNaturalVoice.speakOffline(
+            engine = engine,
+            rawText = textToRead,
+            lang = lang,
+            finalUtteranceId = "v_done_$idx",
+        )
 
         if (res == TextToSpeech.ERROR) {
             scheduleFallbackAdvance()
@@ -351,7 +429,8 @@ class ChapterAudioController(
     }
 
     fun release() {
-        cancelFallback()
+        cancelPlaybackResources()
+        runCatching { scope.coroutineContext[kotlinx.coroutines.Job]?.cancel() }
         runCatching {
             tts?.stop()
             tts?.shutdown()
@@ -386,6 +465,7 @@ fun ChapterAudioBar(
     lang: AppLanguage,
 ) {
     val c = AgapeTheme.colors
+    val nl = lang == AppLanguage.DUTCH
     val verseNum = controller.currentVerseNumber ?: 1
     val verseSnippet = controller.currentVerseText
     Surface(
@@ -396,21 +476,57 @@ fun ChapterAudioBar(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(Modifier.weight(1f).padding(end = 10.dp)) {
-                Text(
-                    text = if (lang == AppLanguage.DUTCH) "AUDIO VOORLEZEN · $title:$verseNum" else "AUDIO READER · $title:$verseNum",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.2.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    color = c.accent,
-                )
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "${controller.voiceProfile.shortName(lang).uppercase()} · $title:$verseNum",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.0.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = c.accent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Box(
+                        Modifier
+                            .clip(CircleShape)
+                            .background(c.surfaceSunken)
+                            .border(0.8.dp, c.line, CircleShape)
+                            .clickable { controller.cycleVoiceProfile() }
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = if (nl) "Stem" else "Voice",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                            color = c.primary,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .clip(CircleShape)
+                            .background(c.surfaceSunken)
+                            .border(0.8.dp, c.line, CircleShape)
+                            .clickable { controller.cycleSpeed() }
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "${controller.speed.label(lang)} ${controller.speed.badge}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                            color = c.primary,
+                        )
+                    }
+                }
                 if (verseSnippet.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         text = verseSnippet,
                         style = MaterialTheme.typography.bodySmall,
@@ -423,14 +539,14 @@ fun ChapterAudioBar(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                IconButton(onClick = { controller.previousVerse() }, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = { controller.previousVerse() }, modifier = Modifier.size(34.dp)) {
                     Icon(
                         Icons.Outlined.SkipPrevious,
-                        contentDescription = if (lang == AppLanguage.DUTCH) "Vorig vers" else "Previous verse",
+                        contentDescription = if (nl) "Vorig vers" else "Previous verse",
                         tint = c.ink,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(19.dp),
                     )
                 }
                 Box(
@@ -448,20 +564,20 @@ fun ChapterAudioBar(
                         modifier = Modifier.size(20.dp),
                     )
                 }
-                IconButton(onClick = { controller.nextVerse() }, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = { controller.nextVerse() }, modifier = Modifier.size(34.dp)) {
                     Icon(
                         Icons.Outlined.SkipNext,
-                        contentDescription = if (lang == AppLanguage.DUTCH) "Volgend vers" else "Next verse",
+                        contentDescription = if (nl) "Volgend vers" else "Next verse",
                         tint = c.ink,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(19.dp),
                     )
                 }
-                IconButton(onClick = { controller.stop() }, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = { controller.stop() }, modifier = Modifier.size(34.dp)) {
                     Icon(
                         Icons.Outlined.Stop,
-                        contentDescription = if (lang == AppLanguage.DUTCH) "Stop voorlezen" else "Stop audio",
+                        contentDescription = if (nl) "Stop voorlezen" else "Stop audio",
                         tint = c.inkMuted,
-                        modifier = Modifier.size(19.dp),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }

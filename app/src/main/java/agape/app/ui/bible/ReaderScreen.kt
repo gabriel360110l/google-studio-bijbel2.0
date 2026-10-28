@@ -537,10 +537,10 @@ fun ReaderScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(bg)
                                 .then(
-                                    if (isSelected) {
-                                        Modifier.border(1.dp, c.accent.copy(alpha = 0.65f), RoundedCornerShape(8.dp))
-                                    } else {
-                                        Modifier
+                                    when {
+                                        isSelected -> Modifier.border(1.dp, c.accent.copy(alpha = 0.65f), RoundedCornerShape(8.dp))
+                                        isSpoken -> Modifier.border(1.dp, c.primary.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                                        else -> Modifier
                                     },
                                 )
                                 .clickable {

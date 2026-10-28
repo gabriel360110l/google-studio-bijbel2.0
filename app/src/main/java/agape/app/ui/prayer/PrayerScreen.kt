@@ -207,6 +207,10 @@ fun PrayerScreen(
         current?.let { hour ->
             item {
                 val sky = remember(now, c.isDark) { daySky(now, c.isDark) }
+                val heroSpeech = remember(hour, lang) {
+                    "${hour.name[lang]}. ${hour.subtitle[lang]}. ${hour.theme[lang]}"
+                }
+                val heroSpeaker = agape.app.ui.components.rememberAgapeSpeaker()
                 Column(
                     Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth()
                         .shadow(20.dp, cardShape, spotColor = sky.bottom.copy(alpha = 0.5f))
@@ -225,9 +229,33 @@ fun PrayerScreen(
                     Spacer(Modifier.height(14.dp))
                     Text(hour.theme[lang], style = MaterialTheme.typography.bodyLarge, color = sky.text, maxLines = 4)
                     Spacer(Modifier.height(20.dp))
-                    Box(
-                        Modifier.clip(CircleShape).background(sky.text).clickable { openHour(hour.id) }.padding(horizontal = 22.dp, vertical = 12.dp),
-                    ) { Text(stringResource(R.string.prayer_begin), style = MaterialTheme.typography.labelLarge, color = sky.bottom) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier.clip(CircleShape).background(sky.text).clickable { openHour(hour.id) }.padding(horizontal = 22.dp, vertical = 12.dp),
+                        ) { Text(stringResource(R.string.prayer_begin), style = MaterialTheme.typography.labelLarge, color = sky.bottom) }
+
+                        Box(
+                            Modifier
+                                .clip(CircleShape)
+                                .background(sky.text.copy(alpha = 0.16f))
+                                .border(1.dp, sky.text.copy(alpha = 0.45f), CircleShape)
+                                .clickable { heroSpeaker.toggle(heroSpeech) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                text = if (heroSpeaker.isSpeaking) {
+                                    if (nl) "Stop stem" else "Stop voice"
+                                } else {
+                                    if (nl) "Luister" else "Listen"
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                                color = sky.text,
+                            )
+                        }
+                    }
                     next?.takeIf { it.id != hour.id }?.let {
                         Spacer(Modifier.height(12.dp))
                         Text(stringResource(R.string.prayer_next, it.name[lang], it.time), style = MaterialTheme.typography.bodySmall, color = sky.muted)
@@ -441,7 +469,20 @@ fun PrayerScreen(
         }
         item { Kicker(stringResource(R.string.prayer_more), Modifier.padding(start = 20.dp, top = 24.dp, bottom = 4.dp)) }
         items(prayers, key = { it.id }) { p ->
-            ListRow(p.title[lang], subtitle = p.subtitle[lang], onClick = { openPrayer(p.id) })
+            val prayerSpeech = remember(p, lang) {
+                buildString {
+                    append(p.title[lang]).append(". ")
+                    p.body[lang].forEach { append(it).append(" ") }
+                }.trim()
+            }
+            ListRow(
+                title = p.title[lang],
+                subtitle = p.subtitle[lang],
+                onClick = { openPrayer(p.id) },
+                trailing = {
+                    agape.app.ui.components.SpeakerButton(text = prayerSpeech, tint = c.inkMuted)
+                },
+            )
         }
         item {
             Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {

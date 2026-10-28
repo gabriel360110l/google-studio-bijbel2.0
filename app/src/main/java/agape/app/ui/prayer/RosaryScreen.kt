@@ -115,8 +115,25 @@ fun RosaryScreen(onBack: () -> Unit, openPassage: (Passage) -> Unit) {
         }
     }
 
+    val currentStepSpeech = remember(current, mysteries, set, lang) {
+        buildString {
+            current.decade?.let { d ->
+                mysteries.getOrNull(d)?.let { m ->
+                    append(m.title[lang]).append(". ")
+                }
+            }
+            current.intention?.let { append(it[lang]).append(". ") }
+            current.prayers.forEach { p ->
+                append(p.title[lang]).append(". ")
+                append(p.text[lang]).append(" ")
+            }
+        }.trim()
+    }
+
     Column(Modifier.fillMaxSize()) {
-        DetailTopBar(title, onBack)
+        DetailTopBar(title, onBack) {
+            agape.app.ui.components.SpeakerButton(text = currentStepSpeech)
+        }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
@@ -184,6 +201,16 @@ private fun StepCard(s: RosaryStep, mysteries: List<agape.app.data.rosary.Myster
     val lang = LocalLanguage.current
     val c = AgapeTheme.colors
     val ordinals = listOf(R.string.rosary_first, R.string.rosary_second, R.string.rosary_third, R.string.rosary_fourth, R.string.rosary_fifth)
+    val stepSpeech = remember(s, mysteries, lang) {
+        buildString {
+            s.decade?.let { d -> mysteries.getOrNull(d)?.let { m -> append(m.title[lang]).append(". ") } }
+            s.intention?.let { append(it[lang]).append(". ") }
+            s.prayers.forEach { p ->
+                append(p.title[lang]).append(". ")
+                append(p.text[lang]).append(" ")
+            }
+        }.trim()
+    }
     AgapeCard {
         val kicker = when {
             s.decade != null && s.count > 0 -> stringResource(R.string.rosary_decade_count, stringResource(ordinals[s.decade]), s.count)
@@ -214,6 +241,10 @@ private fun StepCard(s: RosaryStep, mysteries: List<agape.app.data.rosary.Myster
         s.intention?.let {
             Spacer(Modifier.height(6.dp))
             Text(it[lang], style = MaterialTheme.typography.bodyMedium, color = c.inkMuted)
+        }
+        if (stepSpeech.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            agape.app.ui.components.SpeakerPill(text = stepSpeech)
         }
         s.prayers.forEach { p ->
             Spacer(Modifier.height(14.dp))
